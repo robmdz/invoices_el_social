@@ -1,0 +1,105 @@
+# ==========================================
+# Invoices El Social - Git Ignore Config
+# ==========================================
+
+# ------------------------------------------
+# Node / Frontend Dependencies & Builds
+# ------------------------------------------
+node_modules/
+/frontend/node_modules/
+/frontend/dist/
+/frontend/build/
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.vite/
+.parcel-cache/
+.eslintcache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------------------
+# Python Backend / Virtual Environments
+# ------------------------------------------
+__pycache__/
+backend/__pycache__/
+backend/app/**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+backend/.venv/
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ------------------------------------------
+# Environment and Secrets (CRITICAL)
+# ------------------------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
+.env.production
+.env.*
+!.env.example
+*.pem
+*.key
+*-credentials.json
+*service-account*.json
+.secrets/
+
+# ------------------------------------------
+# IDE / Editors
+# ------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.user
+
+# ------------------------------------------
+# OS-specific files
+# ------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------
+# Databases / Local Storage
+# ------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# ------------------------------------------
+# System & General Logs
+# ------------------------------------------
+*.log
+logs/
