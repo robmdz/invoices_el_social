@@ -105,6 +105,7 @@ export default function InvoicesPage() {
                   <th className="px-3 py-3 font-medium">Proveedor</th>
                   <th className="px-3 py-3 font-medium">Cliente</th>
                   <th className="px-3 py-3 font-medium">Total</th>
+                  <th className="px-3 py-3 font-medium">Estado</th>
                   <th className="px-3 py-3 font-medium">Guardada</th>
                   <th className="w-20 px-3 py-3" />
                 </tr>
@@ -129,6 +130,19 @@ export default function InvoicesPage() {
                       {[inv.fields?.currency, inv.fields?.total_amount]
                         .filter(Boolean)
                         .join(" ") || "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col gap-1">
+                        {inv.processing_status === 'partial' || inv.processing_status === 'failed' ? (
+                          <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400 w-fit">
+                            Alertas
+                          </span>
+                        ) : null}
+                        
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium w-fit ${inv.toteat_registered ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                          {inv.toteat_registered ? 'Toteat: OK' : 'No reg.'}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-xs text-[var(--color-muted)]">
                       {formatSavedDate(inv.created_at)}

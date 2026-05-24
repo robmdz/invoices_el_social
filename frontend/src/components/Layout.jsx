@@ -48,6 +48,12 @@ export default function Layout({ children, compact = false }) {
                 <NavLink to="/facturas" className={navClass}>
                   Mis facturas
                 </NavLink>
+                <NavLink to="/faltas" className={navClass}>
+                  Faltas
+                </NavLink>
+                <NavLink to="/configuracion" className={navClass}>
+                  Configuración
+                </NavLink>
               </>
             )}
           </nav>
@@ -85,10 +91,16 @@ export default function Layout({ children, compact = false }) {
           {user && (
             <>
               <NavLink to="/cargar" className={navClass}>
-                Cargar factura
+                Cargar
               </NavLink>
               <NavLink to="/facturas" className={navClass}>
-                Mis facturas
+                Facturas
+              </NavLink>
+              <NavLink to="/faltas" className={navClass}>
+                Faltas
+              </NavLink>
+              <NavLink to="/configuracion" className={navClass}>
+                Config
               </NavLink>
             </>
           )}

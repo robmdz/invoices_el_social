@@ -8,6 +8,8 @@ import InvoicesPage from "./pages/InvoicesPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import SettingsPage from "./pages/SettingsPage";
+import AlertsPage from "./pages/AlertsPage";
 
 export default function App() {
   return (
@@ -39,6 +41,22 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <InvoicesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/configuracion"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/faltas"
+              element={
+                <ProtectedRoute>
+                  <AlertsPage />
                 </ProtectedRoute>
               }
             />

@@ -14,7 +14,7 @@ export async function uploadInvoice(file) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/invoice/upload`, {
+  const response = await fetch(`${API_BASE_URL}/api/invoice/process`, {
     method: "POST",
     body: formData,
   });

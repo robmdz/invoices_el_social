@@ -6,6 +6,8 @@ import InvoiceEditor from "../components/InvoiceEditor";
 import InvoicePreview from "../components/InvoicePreview";
 import ThemeToggle from "../components/ThemeToggle";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 export default function WorkspacePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -15,6 +17,7 @@ export default function WorkspacePage() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [invoice, setInvoice] = useState(location.state?.invoice ?? null);
   const [saving, setSaving] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [saveError, setSaveError] = useState(null);
 
@@ -55,6 +58,30 @@ export default function WorkspacePage() {
     }
   };
 
+  const handleRegisterToteat = async () => {
+    if (!invoice) return;
+    setRegistering(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/invoice/temp-id/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(invoice),
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Error al registrar en Toteat");
+      }
+      setSaveMessage("Factura registrada exitosamente en Toteat.");
+    } catch (err) {
+      setSaveError(err.message || "No se pudo registrar la factura en Toteat.");
+    } finally {
+      setRegistering(false);
+    }
+  };
+
   if (!previewFile || !previewUrl || !invoice) {
     return null;
   }
@@ -71,7 +98,17 @@ export default function WorkspacePage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <ThemeToggle />
-            <button type="button" onClick={handleSave} disabled={saving} className="btn-primary">
+            
+            <button 
+              type="button" 
+              onClick={handleRegisterToteat} 
+              disabled={saving || registering} 
+              className="btn-primary bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+            >
+              {registering ? "Registrando…" : "Registrar en Toteat"}
+            </button>
+
+            <button type="button" onClick={handleSave} disabled={saving || registering} className="btn-primary">
               {saving ? "Guardando…" : "Guardar factura"}
             </button>
             <Link to="/facturas" className="btn-secondary">
