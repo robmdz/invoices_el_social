@@ -12,6 +12,24 @@ class LineItem(BaseModel):
     amount: str | None = None
 
 
+class CatalogCandidate(BaseModel):
+    code: str
+    name: str
+    base_unit: str
+    confidence_score: float | None = None
+
+
+class SupplierCandidate(BaseModel):
+    id: str
+    code: str
+    name: str
+    vat: str | None = None
+    address: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    confidence_score: float | None = None
+
+
 class ProcessedLineItem(BaseModel):
     """Line item after catalog matching, unit conversion, and tax calculation."""
 
@@ -26,6 +44,8 @@ class ProcessedLineItem(BaseModel):
     catalog_unit: str | None = None
     confidence_score: float | None = None
     product_found: bool = False
+
+    catalog_candidates: list[CatalogCandidate] = Field(default_factory=list)
 
     # Unit conversion
     invoice_unit: str | None = None
@@ -112,6 +132,11 @@ class InvoiceProcessingResponse(BaseModel):
     processing_status: str = "processed"
     total_reconciled: bool = False
     reconciliation_diff: float | None = None
+    
+    # Supplier matching
+    matched_supplier_id: str | None = None
+    matched_supplier_name: str | None = None
+    supplier_candidates: list[SupplierCandidate] = Field(default_factory=list)
 
 
 class ToteatSettingsPayload(BaseModel):

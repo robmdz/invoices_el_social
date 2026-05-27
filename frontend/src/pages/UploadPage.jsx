@@ -1,12 +1,15 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { uploadInvoice } from "../api/client";
+import { uploadInvoice, fetchSuppliers } from "../api/client";
 import Layout from "../components/Layout";
 import InvoiceUpload from "../components/InvoiceUpload";
 import { normalizeInvoice } from "../utils/invoice";
+import { findPartialSupplierMatches, matchSupplier } from "../utils/supplierMatching";
+import { useAuth } from "../context/AuthContext";
 
 export default function UploadPage() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -28,6 +31,45 @@ export default function UploadPage() {
       try {
         const data = await uploadInvoice(file);
         const invoice = normalizeInvoice(data);
+
+        // Fetch suppliers and match if token is available
+        if (session?.access_token) {
+          try {
+            const suppliers = await fetchSuppliers(session.access_token);
+            const supplierName = invoice.fields?.supplier_name;
+
+            if (supplierName && suppliers.length > 0) {
+              // Try to find partial matches
+              const candidates = findPartialSupplierMatches(supplierName, suppliers);
+
+              if (candidates.length > 0) {
+                invoice.supplier_candidates = candidates;
+
+                // If only one match, auto-select it
+                if (candidates.length === 1) {
+                  invoice.matched_supplier_id = candidates[0].id;
+                  invoice.matched_supplier_name = candidates[0].name;
+                  invoice.fields.supplier_name = candidates[0].name;
+                  invoice.supplier_candidates = [];
+                } else {
+                  // Multiple matches - user will select via modal
+                  const { supplier: bestMatch } = matchSupplier(
+                    supplierName,
+                    candidates
+                  );
+                  if (bestMatch) {
+                    invoice.matched_supplier_id = bestMatch.id;
+                    invoice.matched_supplier_name = bestMatch.name;
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            // Log supplier matching error but don't fail the upload
+            console.warn("Failed to match suppliers:", err.message);
+          }
+        }
+
         navigate("/workspace", {
           state: { file, invoice },
         });
@@ -37,7 +79,7 @@ export default function UploadPage() {
         setLoading(false);
       }
     },
-    [navigate]
+    [navigate, session]
   );
 
   return (

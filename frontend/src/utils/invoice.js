@@ -81,9 +81,33 @@ export function normalizeInvoice(data) {
         }))
       : [{ ...EMPTY_LINE_ITEM }];
 
+  const processed_line_items =
+    data.processed_line_items?.length > 0
+      ? data.processed_line_items.map((item) => ({
+          description: item.description ?? "",
+          quantity: item.quantity ?? "",
+          unit_price: item.unit_price ?? "",
+          amount: item.amount ?? "",
+          matched_product_code: item.matched_product_code ?? "",
+          matched_product_name: item.matched_product_name ?? "",
+          catalog_unit: item.catalog_unit ?? "",
+          confidence_score: item.confidence_score ?? "",
+          invoice_unit: item.invoice_unit ?? "",
+          converted_quantity: item.converted_quantity ?? "",
+          conversion_applied: item.conversion_applied ?? "",
+          tax_amount: item.tax_amount ?? "",
+          tax_rate: item.tax_rate ?? "",
+          product_found: item.product_found ?? false,
+          status: item.status ?? "pending",
+          error_message: item.error_message ?? "",
+          catalog_candidates: item.catalog_candidates ?? [],
+        }))
+      : [];
+
   return {
     filename: data.filename ?? "",
     fields,
     line_items,
+    processed_line_items,
   };
 }

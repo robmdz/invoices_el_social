@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routes.invoice import router as invoice_router
+from app.routes.suppliers import router as suppliers_router
 
 load_dotenv()
 
@@ -38,6 +39,7 @@ app.add_middleware(
 )
 
 app.include_router(invoice_router, prefix="/api")
+app.include_router(suppliers_router, prefix="/api")
 
 
 @app.get("/health")

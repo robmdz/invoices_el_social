@@ -2,9 +2,28 @@
 Application configuration loaded from environment variables.
 """
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+
+def get_product_catalog_path(csv_path: str | None = None) -> str:
+    """Resolve the product catalog CSV path from settings or use the default file."""
+    if not csv_path:
+        settings = get_settings()
+        csv_path = settings.product_catalog_csv or ""
+
+    if csv_path:
+        csv_path = os.path.expanduser(csv_path)
+        return csv_path if os.path.isabs(csv_path) else os.path.abspath(os.path.join(ROOT_DIR, csv_path))
+
+    return os.path.join(
+        ROOT_DIR,
+        "MaestroIngr_1828467141218060_1_2026-05-24T19_42_41.xlsx - Ingr.csv",
+    )
 
 
 class Settings(BaseSettings):

@@ -10,6 +10,7 @@ import re
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 
+from app.config import get_product_catalog_path
 from app.schemas.invoice import (
     ExtractedField,
     InvoiceAlert,
@@ -52,10 +53,7 @@ def load_product_catalog(csv_path: str | None = None) -> list[CatalogProduct]:
         return _catalog_cache
 
     if not csv_path:
-        csv_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            "MaestroIngr_1828467141218060_1_2026-05-24T19_42_41.xlsx - Ingr.csv",
-        )
+        csv_path = get_product_catalog_path()
 
     catalog = []
     if not os.path.exists(csv_path):
@@ -83,6 +81,27 @@ def load_product_catalog(csv_path: str | None = None) -> list[CatalogProduct]:
     return catalog
 
 
+def normalize_product_name(name: str) -> str:
+    """Normalize a product name for robust matching.
+
+    This removes punctuation, collapses whitespace, and normalizes common
+    unit patterns like '207 ML' to '207ml'."""
+    if not name:
+        return ""
+
+    normalized = name.lower().strip()
+    # Normalize common unit spacing like '207 ML' -> '207ml'.
+    normalized = re.sub(
+        r"(\d+)\s+(gr|g|kg|ml|l|lt|ltr|oz|un|unidad|caja|paq)\b",
+        r"\1\2",
+        normalized,
+    )
+    # Remove punctuation by replacing with spaces.
+    normalized = re.sub(r"[\"'“”‘’.,:;()\[\]/\\-]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
 def match_product(
     description: str,
     catalog: list[CatalogProduct],
@@ -93,15 +112,16 @@ def match_product(
 
     Uses a combination of:
     1. Exact code match (if LLM provided a code)
-    2. Exact name match
-    3. Fuzzy name matching (SequenceMatcher)
+    2. Exact normalized name match
+    3. Substring / token containment
+    4. Fuzzy name matching (SequenceMatcher)
 
     Returns (matched_product, confidence_score 0-100).
     """
     if not description or not catalog:
         return None, 0.0
 
-    desc_lower = description.lower().strip()
+    desc_norm = normalize_product_name(description)
 
     # 1. If LLM already matched a code, validate it exists
     if llm_match_code:
@@ -109,14 +129,15 @@ def match_product(
             if product.code == llm_match_code and product.active:
                 return product, max(llm_confidence, 85.0)
 
-    # 2. Exact name match
+    # 2. Exact normalized name match
     for product in catalog:
         if not product.active:
             continue
-        if product.name_lower == desc_lower:
+        product_norm = normalize_product_name(product.name_lower)
+        if product_norm == desc_norm:
             return product, 100.0
 
-    # 3. Check if description contains the product name or vice versa
+    # 3. Check normalized description / product containment and fuzzy match
     best_match = None
     best_score = 0.0
 
@@ -124,16 +145,30 @@ def match_product(
         if not product.active:
             continue
 
+        product_norm = normalize_product_name(product.name_lower)
+
         # Substring containment
-        if product.name_lower in desc_lower or desc_lower in product.name_lower:
-            score = 80.0
+        if product_norm in desc_norm or desc_norm in product_norm:
+            score = 85.0
+            if score > best_score:
+                best_score = score
+                best_match = product
+            continue
+
+        # Check token subset overlap as a stronger signal than raw fuzzy match
+        desc_tokens = set(desc_norm.split())
+        product_tokens = set(product_norm.split())
+        if product_tokens and desc_tokens and (
+            product_tokens.issubset(desc_tokens) or desc_tokens.issubset(product_tokens)
+        ):
+            score = 82.0
             if score > best_score:
                 best_score = score
                 best_match = product
             continue
 
         # Fuzzy match
-        ratio = SequenceMatcher(None, desc_lower, product.name_lower).ratio()
+        ratio = SequenceMatcher(None, desc_norm, product_norm).ratio()
         score = ratio * 100.0
         if score > best_score:
             best_score = score
@@ -144,6 +179,61 @@ def match_product(
         return best_match, best_score
 
     return None, best_score
+
+
+def find_partial_catalog_matches(
+    description: str,
+    catalog: list[CatalogProduct],
+) -> list[CatalogProduct]:
+    """Return catalog products whose normalized names partially match the description."""
+    if not description:
+        return []
+
+    desc_norm = normalize_product_name(description)
+    candidates: list[CatalogProduct] = []
+
+    for product in catalog:
+        if not product.active:
+            continue
+
+        product_norm = normalize_product_name(product.name_lower)
+        if not product_norm:
+            continue
+
+        if product_norm in desc_norm or desc_norm in product_norm:
+            candidates.append(product)
+
+    return candidates
+
+
+def select_best_candidate(
+    description: str,
+    candidates: list[CatalogProduct],
+    llm_match_code: str | None = None,
+    llm_confidence: float = 0.0,
+) -> tuple[CatalogProduct | None, float]:
+    """Select the best candidate from an ambiguous partial-match set."""
+    if not candidates:
+        return None, 0.0
+
+    if llm_match_code:
+        for product in candidates:
+            if product.code == llm_match_code:
+                return product, max(llm_confidence, 85.0)
+
+    best_match = None
+    best_score = 0.0
+    desc_norm = normalize_product_name(description)
+
+    for product in candidates:
+        product_norm = normalize_product_name(product.name_lower)
+        ratio = SequenceMatcher(None, desc_norm, product_norm).ratio()
+        score = ratio * 100.0
+        if score > best_score:
+            best_score = score
+            best_match = product
+
+    return best_match, best_score or 60.0
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +513,34 @@ def process_invoice(
         line_tax_rate = _parse_numeric(line_tax_rate_str)
 
         # --- Catalog lookup ---
-        matched, confidence = match_product(desc, catalog, llm_code, llm_confidence)
+        candidates = find_partial_catalog_matches(desc, catalog)
+        matched = None
+        confidence = 0.0
+        catalog_candidates: list[dict] = []
+        if candidates:
+            catalog_candidates = [
+                {
+                    "code": candidate.code,
+                    "name": candidate.name,
+                    "base_unit": candidate.base_unit,
+                    "confidence_score": None,
+                }
+                for candidate in candidates
+            ]
+
+            if len(candidates) == 1:
+                matched = candidates[0]
+                confidence = 85.0
+            else:
+                matched, confidence = select_best_candidate(
+                    desc, candidates, llm_code, llm_confidence
+                )
+                if matched:
+                    for candidate in catalog_candidates:
+                        if candidate["code"] == matched.code:
+                            candidate["confidence_score"] = confidence
+        else:
+            matched, confidence = match_product(desc, catalog, llm_code, llm_confidence)
 
         processed = ProcessedLineItem(
             description=desc or None,
@@ -434,6 +551,7 @@ def process_invoice(
             tax_amount=line_tax,
             tax_rate=line_tax_rate if line_tax_rate else tax_rate,
             net_unit_cost=unit_price,
+            catalog_candidates=catalog_candidates,
         )
 
         if matched:
@@ -443,7 +561,7 @@ def process_invoice(
             processed.confidence_score = confidence
             processed.product_found = True
             processed.provider_product_id = matched.code
-            processed.status = "matched"
+            processed.status = "pending" if len(candidates) > 1 else "matched"
 
             comments.append(ReviewComment(
                 comment_type="catalog_match",
@@ -538,6 +656,8 @@ def process_invoice(
         processed_items, invoice_net, invoice_tax, invoice_total, tax_rate
     )
 
+    diff_str = "unknown" if diff is None else f"{diff:.2f}"
+
     if not reconciled and invoice_total is not None:
         alerts.append(InvoiceAlert(
             alert_type="total_mismatch",
@@ -545,7 +665,7 @@ def process_invoice(
             title="Total does not reconcile",
             description=(
                 f"Sum of line items does not match invoice total. "
-                f"Difference: {diff:.2f if diff else 'unknown'}. "
+                f"Difference: {diff_str}. "
                 f"This may be due to unmatched products, rounding, or missing line items."
             ),
         ))
@@ -554,7 +674,7 @@ def process_invoice(
             comment_type="review_required",
             invoice_number=invoice_number,
             product_name=None,
-            issue=f"Invoice total mismatch. Difference: {diff:.2f if diff else 'unknown'}",
+            issue=f"Invoice total mismatch. Difference: {diff_str}",
             action_taken="Flagged for manual reconciliation",
             next_step="Check for missing line items, unmatched products, or tax calculation differences",
         ))

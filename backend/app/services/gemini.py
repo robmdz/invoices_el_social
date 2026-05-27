@@ -15,7 +15,7 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
-from app.config import Settings
+from app.config import Settings, get_product_catalog_path
 from app.schemas.invoice import ExtractedField, LineItem
 
 logger = logging.getLogger(__name__)
@@ -85,12 +85,9 @@ EXTRACTION_SCHEMA = {
 }
 
 
-def _load_product_catalog_for_prompt() -> str:
+def _load_product_catalog_for_prompt(settings: Settings) -> str:
     """Load the product catalog CSV and format it as context for the LLM prompt."""
-    catalog_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-        "MaestroIngr_1828467141218060_1_2026-05-24T19_42_41.xlsx - Ingr.csv",
-    )
+    catalog_path = get_product_catalog_path(settings.product_catalog_csv or None)
 
     if not os.path.exists(catalog_path):
         logger.warning("Product catalog CSV not found at %s", catalog_path)
@@ -117,9 +114,9 @@ def _load_product_catalog_for_prompt() -> str:
     return "\n".join(lines)
 
 
-def _build_extraction_prompt() -> str:
+def _build_extraction_prompt(settings: Settings) -> str:
     """Build the full extraction prompt with product catalog context."""
-    catalog_text = _load_product_catalog_for_prompt()
+    catalog_text = _load_product_catalog_for_prompt(settings)
 
     return f"""You are a specialized invoice processing agent for a restaurant inventory system (Toteat).
 Your job is to extract ALL data from supplier invoices and map them to the Toteat API format.
@@ -228,7 +225,7 @@ def extract_invoice(
         raise ValueError("GEMINI_API_KEY is not configured.")
 
     client = genai.Client(api_key=settings.gemini_api_key)
-    prompt = _build_extraction_prompt()
+    prompt = _build_extraction_prompt(settings)
 
     response = client.models.generate_content(
         model=settings.gemini_model,
@@ -266,7 +263,7 @@ def extract_invoice_full(
         raise ValueError("GEMINI_API_KEY is not configured.")
 
     client = genai.Client(api_key=settings.gemini_api_key)
-    prompt = _build_extraction_prompt()
+    prompt = _build_extraction_prompt(settings)
 
     response = client.models.generate_content(
         model=settings.gemini_model,
